@@ -552,7 +552,21 @@ bash scripts/screenshot.sh "http://localhost:3000" /tmp/review-desktop.png 1400 
 bash scripts/screenshot.sh "http://localhost:3000" /tmp/review-mobile.png 390 844
 ```
 
-Analyze with `image` tool. Fix issues. Re-run if needed.
+**Review Checklist** (analyze with `image` tool):
+- ✅ **Desktop (1400px)**: Content centered, proper spacing
+- ✅ **Mobile (390px)**: 
+  - No horizontal overflow (content fits within screen)
+  - Text readable (not too small)
+  - Padding appropriate (p-4 not p-24)
+  - Touch targets large enough (min 44x44px)
+  - No content cutting off edges
+
+**If issues found:** Fix responsive classes, re-run screenshots.
+
+Common fixes:
+- Large padding → `p-4 md:p-8 lg:p-12`
+- Large text → `text-2xl md:text-4xl`
+- Wide content → Add `max-w-full` or `px-4`
 
 **→ Message user: "Review complete, sending preview..."**
 
@@ -692,11 +706,23 @@ Apply these consistently. These are quality standards.
 - Limit palette (1 primary + 1 accent + neutrals)
 - Consistent accent usage (CTAs, links, active states)
 
-### Responsive Design
-- Mobile-first (390px → 768px → 1024px)
-- Touch targets: min 44x44px on mobile
-- Stack on mobile (grids collapse to single column)
-- Hamburger menu on mobile
+### Responsive Design (Critical)
+- **Mobile-first** (390px → 768px → 1024px) - Always design for 390px first
+- **Responsive padding** - Use Tailwind responsive classes:
+  - Mobile: `p-4` or `px-4 py-6` (never p-24 on mobile!)
+  - Tablet: `md:p-8` or `md:px-6 md:py-8`
+  - Desktop: `lg:p-12 xl:p-24`
+  - Example: `<main className="p-4 md:p-8 lg:p-12">`
+- **Responsive text sizes** - Scale down headings on mobile:
+  - Mobile: `text-2xl` → Desktop: `md:text-4xl`
+  - Mobile: `text-lg` → Desktop: `md:text-2xl`
+- **No horizontal overflow** - Content must fit within 390px width
+  - Test: Check mobile screenshot for any content cutting off edges
+  - Use `max-w-full` on containers
+  - Break long words: `break-words`
+- **Touch targets** - min 44x44px for buttons/links on mobile
+- **Stack on mobile** - Grids collapse to single column: `grid-cols-1 md:grid-cols-2 lg:grid-cols-3`
+- **Hamburger menu** - Required on mobile for navigation
 
 ### Components (Use shadcn/ui)
 - **Icons**: Use Lucide React (comes with shadcn/ui), never emoji
@@ -844,7 +870,10 @@ const useInfinitePosts = () => {
 - ❌ Not using Next.js Image component (performance loss)
 - ❌ Missing error boundaries
 - ❌ Hardcoding API URLs (use env vars)
-- ❌ No mobile testing (always check responsive)
+- ❌ No mobile testing (always check responsive at 390px width)
+- ❌ **Large padding on mobile** (p-24 = 96px causes overflow on 390px screens)
+- ❌ **Not using responsive Tailwind classes** (use p-4 md:p-8 lg:p-12)
+- ❌ **Horizontal overflow on mobile** (content wider than 390px)
 - ❌ Building custom components when shadcn/ui has them (Button, Card, Dialog, etc.)
 - ❌ Using emoji for icons (use Lucide React icons from shadcn/ui)
 - ❌ Not installing `@hookform/resolvers` and `zod` before using shadcn forms
