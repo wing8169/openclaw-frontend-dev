@@ -527,16 +527,32 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
 
 Run dev server:
 ```bash
-npm run dev &
-sleep 5
+npm run dev > /tmp/project-dev.log 2>&1 &
+```
+
+**Wait for server to be fully ready** (critical - avoid white screen screenshots):
+```bash
+# Wait for "Ready in" message (usually 5-15 seconds)
+timeout=30
+elapsed=0
+while [ $elapsed -lt $timeout ]; do
+  if grep -q "Ready in" /tmp/project-dev.log 2>/dev/null; then
+    echo "Server ready!"
+    sleep 3  # Extra buffer for module loading
+    break
+  fi
+  sleep 1
+  elapsed=$((elapsed + 1))
+done
 ```
 
 Take screenshots (requires chromium):
 ```bash
-bash scripts/screenshot.sh "http://localhost:3000" /tmp/review.png 1400 900
+bash scripts/screenshot.sh "http://localhost:3000" /tmp/review-desktop.png 1400 900
+bash scripts/screenshot.sh "http://localhost:3000" /tmp/review-mobile.png 390 844
 ```
 
-Analyze with `image` tool. Fix issues. Re-run. Also check mobile (width=390).
+Analyze with `image` tool. Fix issues. Re-run if needed.
 
 **→ Message user: "Review complete, sending preview..."**
 
@@ -833,6 +849,36 @@ const useInfinitePosts = () => {
 - ❌ Using emoji for icons (use Lucide React icons from shadcn/ui)
 - ❌ Not installing `@hookform/resolvers` and `zod` before using shadcn forms
 - ❌ Forgetting to add `<Toaster />` component when using toast notifications
+- ❌ **Taking screenshots before dev server is fully ready** (causes white screens)
+- ❌ **Not waiting for module loading** (causes "Module not found" errors in screenshots)
+
+## Troubleshooting
+
+### White Screen Screenshots
+**Problem:** Screenshots show blank white page
+**Cause:** Dev server not fully initialized before screenshot
+**Solution:** 
+- Wait for "Ready in" message in dev server logs
+- Add 3-5 second buffer after "Ready" message
+- Verify localhost:3000 loads in browser before taking screenshot
+
+### Module Not Found Errors
+**Problem:** React error "Module not found: Can't resolve @tanstack/react-query"
+**Cause:** Dev server started before all packages loaded
+**Solution:**
+- Restart dev server: `pkill -f "next dev" && npm run dev`
+- Verify packages in node_modules: `ls node_modules/@tanstack/`
+- Wait 10-15 seconds after `npm install` before starting dev server
+
+### Dev Server Won't Start
+**Problem:** Port 3000 already in use
+**Solution:**
+```bash
+# Kill existing process
+pkill -f "next dev"
+# Or use different port
+PORT=3001 npm run dev
+```
 
 ## Iteration & Updates
 
