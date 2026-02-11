@@ -2,6 +2,8 @@
 
 An OpenClaw skill for generating production-ready Next.js 14+ projects with TypeScript, shadcn/ui, and API integration.
 
+**GitHub Repository:** https://github.com/wing8169/openclaw-frontend-dev
+
 ## Features
 
 - 🚀 Next.js 14+ App Router with TypeScript
