@@ -7,6 +7,15 @@ description: Generate production-ready Next.js projects with TypeScript, Tailwin
 
 Generate production-ready Next.js projects from natural language, with shadcn/ui components, API integration, type safety, and modern tooling.
 
+## Quick Start (TL;DR)
+
+**Fast path for simple projects:**
+1. Create Next.js app → 2. Install shadcn/ui → 3. Build UI → 4. Start with PM2 → 5. Screenshot review → 6. Done
+
+**Live preview:** Projects run on PM2 (port 3002), accessible at `http://localhost:3002` or via nginx proxy if configured.
+
+**Default workflow:** All projects use PM2 for dev server management (prevents port conflicts, ensures single instance).
+
 ## Requirements & Optional Features
 
 ### Required Dependencies
@@ -22,15 +31,18 @@ Generate production-ready Next.js projects from natural language, with shadcn/ui
 - **If declined**: Manual review only (you describe, user verifies)
 
 #### 2. Live Preview Server (requires Nginx)
-- **What it does**: Serves project on local network for live preview during development
+- **What it does**: Serves project on external port for live preview during development (useful for mobile testing or remote access)
 - **Installation**: `sudo apt-get install nginx`
-- **Nginx setup**:
+- **How it works**: PM2 runs dev server on port 3002, nginx proxies it to chosen external port
+- **Nginx config template**:
   ```nginx
+  # /etc/nginx/sites-available/<project-name>
   server {
-    listen <port>;
+    listen <external-port>;  # e.g., 3001, 8081, etc.
     server_name _;
+    
     location / {
-      proxy_pass http://localhost:3000;
+      proxy_pass http://localhost:3002;  # PM2 dev server
       proxy_http_version 1.1;
       proxy_set_header Upgrade $http_upgrade;
       proxy_set_header Connection 'upgrade';
@@ -39,10 +51,25 @@ Generate production-ready Next.js projects from natural language, with shadcn/ui
     }
   }
   ```
-- **Privileges**: Read nginx config (`/etc/nginx/sites-available/`), reload nginx (`sudo systemctl reload nginx`)
-- **If declined**: Use Next.js dev server only (`npm run dev` on localhost:3000)
+- **Enable**: `sudo ln -s /etc/nginx/sites-available/<project-name> /etc/nginx/sites-enabled/ && sudo systemctl reload nginx`
+- **If declined**: Access directly via `http://localhost:3002` (PM2 port)
 
 **Before starting, ask user if they want to enable optional features.**
+
+## Common Project Types
+
+**Quick reference for typical requests:**
+
+- **Dashboard/Admin Panel** → Use `(dashboard)` route group, shadcn data tables, charts
+- **Landing Page** → Single `app/page.tsx`, hero section, features grid, testimonials
+- **Todo/Task App** → shadcn checkbox, input, button; local state or API
+- **Blog/CMS** → Dynamic routes `app/blog/[slug]/page.tsx`, markdown support
+- **E-commerce** → Product catalog, cart state (Zustand), checkout flow
+- **SaaS App** → Auth (`(auth)` group), protected routes, subscription logic
+- **Portfolio** → Projects grid, contact form, image gallery
+- **Form-heavy App** → React Hook Form + Zod validation, shadcn form components
+
+**Ask user:** What type of project are you building? (helps determine structure and components)
 
 ## Tech Stack
 
@@ -207,6 +234,12 @@ Generate production-ready Next.js projects from natural language, with shadcn/ui
 ## Workflow
 
 **Keep user informed at every step — this is a live build log.**
+
+**⚠️ Important: All projects use PM2 for dev server management (port 3002 by default). This ensures:**
+- Only one instance runs at a time (no port conflicts)
+- Easy process management (list/logs/restart/stop)
+- Persistent dev server across terminal sessions
+- Better error logging and debugging
 
 ### Step 1: Project Setup
 Ask:
@@ -525,18 +558,27 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
 
 ### Step 7: Visual Review (if chromium enabled)
 
-Run dev server:
+**Important:** Use PM2 to manage the dev server (ensures only 1 instance runs, prevents port conflicts).
+
+Start dev server with PM2:
 ```bash
-npm run dev > /tmp/project-dev.log 2>&1 &
+# Stop any existing instance of this project
+pm2 delete <project-name> 2>/dev/null || true
+
+# Start with PM2 (port 3002 for nginx proxy)
+PORT=3002 pm2 start npm --name "<project-name>" --cwd "$(pwd)" -- run dev
+
+# Give PM2 a moment to start
+sleep 2
 ```
 
 **Wait for server to be fully ready** (critical - avoid white screen screenshots):
 ```bash
-# Wait for "Ready in" message (usually 5-15 seconds)
+# Wait for "Ready in" message in PM2 logs (usually 5-15 seconds)
 timeout=30
 elapsed=0
 while [ $elapsed -lt $timeout ]; do
-  if grep -q "Ready in" /tmp/project-dev.log 2>/dev/null; then
+  if pm2 logs <project-name> --nostream --lines 50 2>/dev/null | grep -q "Ready in"; then
     echo "Server ready!"
     sleep 3  # Extra buffer for module loading
     break
@@ -544,12 +586,18 @@ while [ $elapsed -lt $timeout ]; do
   sleep 1
   elapsed=$((elapsed + 1))
 done
+
+# Verify server is responding
+if ! curl -s http://localhost:3002 > /dev/null; then
+  echo "Warning: Server not responding on port 3002"
+  pm2 logs <project-name> --nostream --lines 20
+fi
 ```
 
 Take screenshots (requires chromium):
 ```bash
-bash scripts/screenshot.sh "http://localhost:3000" /tmp/review-desktop.png 1400 900
-bash scripts/screenshot.sh "http://localhost:3000" /tmp/review-mobile.png 390 844
+bash scripts/screenshot.sh "http://localhost:3002" /tmp/review-desktop.png 1400 900
+bash scripts/screenshot.sh "http://localhost:3002" /tmp/review-mobile.png 390 844
 ```
 
 **Review Checklist** (analyze with `image` tool):
@@ -608,6 +656,12 @@ Create `README.md` with:
 
 ### Step 10: Export & Deploy Guidance
 
+**Stop PM2 dev server** (if running):
+```bash
+pm2 delete <project-name> 2>/dev/null || true
+pm2 save  # Persist PM2 process list
+```
+
 Zip the project:
 ```bash
 cd .. && zip -r /tmp/<project-name>.zip <project-name>/
@@ -622,6 +676,104 @@ Provide deployment options:
 - **Self-hosted**: Provide systemd service + nginx config
 
 **→ Message user: "Project ready! 🚀"**
+
+## Testing & Live Preview
+
+### Quick Test (during development)
+
+**1. PM2 dev server (always running after Step 7):**
+```bash
+# Check status
+pm2 list
+
+# View logs
+pm2 logs <project-name>
+
+# Access locally
+curl http://localhost:3002
+```
+
+**2. Live preview URLs:**
+- **Local access:** `http://localhost:3002`
+- **Nginx proxy** (if configured): `http://<server-ip>:<external-port>`
+- **Mobile testing:** Use nginx proxy or ngrok/tunneling service
+
+**3. Screenshot review (if chromium enabled):**
+```bash
+# Desktop (1400x900)
+bash scripts/screenshot.sh "http://localhost:3002" /tmp/desktop.png 1400 900
+
+# Mobile (390x844)
+bash scripts/screenshot.sh "http://localhost:3002" /tmp/mobile.png 390 844
+```
+
+### End-to-End Testing Workflow
+
+**Full test sequence:**
+```bash
+# 1. Check PM2 status
+pm2 list | grep <project-name>
+
+# 2. Verify dev server responding
+curl -I http://localhost:3002
+
+# 3. Take screenshots for visual verification
+bash scripts/screenshot.sh "http://localhost:3002" /tmp/test-desktop.png 1400 900
+bash scripts/screenshot.sh "http://localhost:3002" /tmp/test-mobile.png 390 844
+
+# 4. Check logs for errors
+pm2 logs <project-name> --lines 50 | grep -i error
+
+# 5. Test API endpoints (if using API routes)
+curl http://localhost:3002/api/health  # Example health check
+
+# 6. Production build test
+npm run build && npm run start  # Test production build
+
+# 7. Type check
+npm run type-check
+```
+
+### Common Testing Scenarios
+
+**Scenario 1: Test responsive design**
+```bash
+# Mobile, tablet, desktop
+for width in 390 768 1400; do
+  bash scripts/screenshot.sh "http://localhost:3002" /tmp/screen-${width}.png $width 900
+done
+```
+
+**Scenario 2: Test specific page/route**
+```bash
+# Take screenshot of specific route
+bash scripts/screenshot.sh "http://localhost:3002/dashboard" /tmp/dashboard.png 1400 900
+```
+
+**Scenario 3: Test after making changes**
+```bash
+# PM2 auto-reloads on file changes, verify in logs
+pm2 logs <project-name> --lines 20
+
+# Wait for "compiled successfully" then take new screenshot
+bash scripts/screenshot.sh "http://localhost:3002" /tmp/updated.png 1400 900
+```
+
+### Sharing Preview with User
+
+**Option 1: Screenshots**
+- Send desktop + mobile screenshots via message tool
+- User provides feedback, you iterate
+
+**Option 2: Nginx proxy + external access**
+- Set up nginx config (see Optional Features)
+- Share URL: `http://<server-ip>:<port>`
+- User can test live in browser
+
+**Option 3: Export & deploy**
+- Zip project and send to user
+- User deploys to Vercel/Netlify
+- Test on production URL
 
 ## API Integration Patterns
 
@@ -900,23 +1052,125 @@ const useInfinitePosts = () => {
 - Wait 10-15 seconds after `npm install` before starting dev server
 
 ### Dev Server Won't Start
-**Problem:** Port 3000 already in use
-**Solution:**
+**Problem:** Port already in use (EADDRINUSE error)
+**Solution (PM2 method):**
 ```bash
-# Kill existing process
-pkill -f "next dev"
-# Or use different port
-PORT=3001 npm run dev
+# Check what's running
+pm2 list
+
+# Stop the conflicting process
+pm2 delete <project-name>
+
+# Or check port directly
+lsof -ti:3002
+
+# Kill process on port (if not PM2-managed)
+kill -9 $(lsof -ti:3002)
+
+# Restart with PM2
+PORT=3002 pm2 start npm --name "<project-name>" --cwd "$(pwd)" -- run dev
 ```
+
+### PM2 Process Management
+**List all PM2 processes:**
+```bash
+pm2 list
+```
+
+**Check logs:**
+```bash
+pm2 logs <project-name> --lines 50
+```
+
+**Restart a process:**
+```bash
+pm2 restart <project-name>
+```
+
+**Stop a process:**
+```bash
+pm2 stop <project-name>
+```
+
+**Delete a process:**
+```bash
+pm2 delete <project-name>
+```
+
+**Ensure only one instance runs:**
+```bash
+# Always delete before starting
+pm2 delete <project-name> 2>/dev/null || true
+PORT=3002 pm2 start npm --name "<project-name>" --cwd "$(pwd)" -- run dev
+```
+
+**Common PM2 scenarios:**
+
+1. **Project won't start** → Check logs: `pm2 logs <project-name>`
+2. **Process keeps restarting** → Module missing or port conflict, check logs
+3. **Changes not reflecting** → PM2 auto-reloads, verify in logs: `pm2 logs <project-name> | grep compiled`
+4. **Multiple instances running** → Delete all: `pm2 delete all && pm2 list`
+5. **Check resource usage** → `pm2 monit` (real-time monitoring)
+6. **Save PM2 process list** → `pm2 save` (persists across reboots)
 
 ## Iteration & Updates
 
 When user requests changes:
 1. Identify affected files
 2. Make changes
-3. Run type check: `npm run type-check`
-4. Test locally: `npm run dev`
-5. If chromium enabled: take new screenshot
-6. Report changes to user
+3. **PM2 auto-reloads** (no manual restart needed for file changes)
+4. Run type check: `npm run type-check`
+5. Verify in logs: `pm2 logs <project-name> --lines 20`
+6. If chromium enabled: take new screenshot
+7. Report changes to user
 
 **Always explain what changed and why.**
+
+---
+
+## Quick Reference Cheat Sheet
+
+### Essential Commands
+```bash
+# Start dev server
+pm2 delete <project-name> 2>/dev/null || true
+PORT=3002 pm2 start npm --name "<project-name>" --cwd "$(pwd)" -- run dev
+
+# Check status
+pm2 list
+pm2 logs <project-name>
+
+# Take screenshots
+bash scripts/screenshot.sh "http://localhost:3002" /tmp/desktop.png 1400 900
+bash scripts/screenshot.sh "http://localhost:3002" /tmp/mobile.png 390 844
+
+# Test production build
+npm run build && npm run start
+
+# Type check
+npm run type-check
+```
+
+### File Locations
+- **Components:** `components/ui/` (shadcn), `components/features/` (custom)
+- **Pages:** `app/*/page.tsx`
+- **API routes:** `app/api/*/route.ts`
+- **Styles:** `app/globals.css`, `tailwind.config.ts`
+- **Config:** `next.config.ts`, `.env.local`
+
+### Common shadcn Components
+```bash
+npx shadcn-ui@latest add button input form card table dialog toast
+```
+
+### Live Preview URLs
+- **Local:** http://localhost:3002
+- **Nginx proxy:** http://<server-ip>:<external-port>
+- **Mobile testing:** Use nginx proxy or ngrok
+
+### Troubleshooting
+1. **Port conflict** → `pm2 delete <name>` then restart
+2. **White screen** → Wait for "Ready in" message (check logs)
+3. **Module errors** → `npm install` then restart PM2
+4. **Type errors** → `npm run type-check`
+5. **Layout breaks** → Check responsive classes (p-4 md:p-8 lg:p-12)
